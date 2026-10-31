@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test backendu konwertera</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 20px auto; padding: 0 12px; }
+  fieldset { margin: 14px 0; border: 1px solid #888; border-radius: 6px; }
+  legend { font-weight: bold; }
+  input, select, button { font: inherit; padding: 6px; margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 4px; border-bottom: 1px solid #8884; }
+  #log { background: #111; color: #7CFC00; padding: 8px; height: 220px; overflow: auto;
+         white-space: pre-wrap; font: 12px monospace; border-radius: 6px; }
+  #who { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h2>Test backendu konwertera</h2>
+<p>Adres backendu: <input id="api" value="http://localhost:8000" size="28"></p>
+
+<fieldset>
+  <legend>1. Logowanie</legend>
+  <div>
+    <input id="email" type="email" placeholder="twoj@email.pl" size="28">
+    <button id="btnOtp">Wyślij kod</button>
+  </div>
+  <div>
+    <input id="code" placeholder="kod (10 znaków)" size="18" maxlength="10">
+    <button id="btnLogin">Zaloguj</button>
+    <button id="btnLogout">Wyloguj</button>
+  </div>
+  <div id="who">Niezalogowany</div>
+</fieldset>
+
+<fieldset id="convertBox" disabled>
+  <legend>2. Konwersja</legend>
+  <input id="file" type="file">
+  na
+  <select id="target">
+    <option>jpg</option><option>png</option><option>gif</option><option>heic</option>
+    <option>mp3</option><option>wav</option><option>flac</option>
+    <option>mp4</option><option>mov</option>
+  </select>
+  <button id="btnConvert">Konwertuj</button>
+</fieldset>
+
+<fieldset id="filesBox" disabled>
+  <legend>3. Moje pliki (kasowane po 10 min)</legend>
+  <button id="btnRefresh">Odśwież</button>
+  <table><tbody id="files"></tbody></table>
+</fieldset>
+
+<h3>Log żądań</h3>
+<div id="log"></div>
+
+<script>
+// Sesja siedzi w cookie HttpOnly ustawianym przez backend. JavaScript nie widzi tokenu,
+// więc nie ma czego trzymać w zmiennej. Przeglądarka sama dokleja cookie do żądań.
+let loggedIn = false, sessionExp = 0, busy = false, refreshing = false;
+const $ = (id) => document.getElementById(id);
+const base = () => $("api").value.trim().replace(/\/$/, "");
+
+function log(msg) {
+  $("log").textContent += "[" + new Date().toLocaleTimeString() + "] " + msg + "\n";
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+function fmt(sec) {
+  sec = Math.max(0, Math.round(sec));
+  return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+}
+
+function setLoggedIn(on, expiresIn) {
+  loggedIn = on;
+  sessionExp = on ? Date.now() + expiresIn * 1000 : 0;
+  $("convertBox").disabled = $("filesBox").disabled = !on;
+  if (!on) { $("who").textContent = "Niezalogowany"; $("files").innerHTML = ""; }
+}
+
+// jedno miejsce, przez które idą wszystkie żądania; credentials:"include" = wysyłaj cookie
+async function api(method, path, body, quiet) {
+  const headers = {};
+  if (body && !(body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(body);
+  }
+  try {
+    const r = await fetch(base() + path, { method, headers, body, credentials: "include" });
+    const text = await r.text();
+    if (!quiet || r.ok) log(method + " " + path + " → " + r.status + " " + text);
+    if (r.status === 401 && loggedIn) { log("Sesja wygasła"); setLoggedIn(false); }
+    let data = null;
+    try { data = JSON.parse(text); } catch (e) {}
+    return { ok: r.ok, status: r.status, data };
+  } catch (e) {
+    log(method + " " + path + " → BŁĄD SIECI: " + e + "\n   (backend wyłączony, zły adres albo CORS: otwórz tę stronę przez http://localhost:3000)");
+    return { ok: false, status: 0, data: null };
+  }
+}
+
+// czy przeglądarka ma ważne cookie sesji? (też po odświeżeniu strony)
+async function checkSession() {
+  const r = await api("GET", "/auth/me", null, true);
+  if (r.ok) { setLoggedIn(true, r.data.expires_in); refreshFiles(); }
+}
+
+$("btnOtp").onclick = async () => {
+  const r = await api("POST", "/auth/request-otp", { email: $("email").value.trim() });
+  if (r.ok) log("Kod wysłany. Sprawdź skrzynkę (także spam).");
+};
+
+$("btnLogin").onclick = async () => {
+  const r = await api("POST", "/auth/verify-otp", {
+    email: $("email").value.trim(),
+    code: $("code").value.trim(),
+  });
+  if (r.ok) checkSession();   // odpowiedź nie zawiera tokenu, cookie jest już ustawione
+};
+
+$("btnLogout").onclick = async () => {
+  await api("POST", "/auth/logout");
+  setLoggedIn(false);
+};
+
+$("btnConvert").onclick = async () => {
+  const file = $("file").files[0];
+  if (!file) return log("Wybierz plik.");
+  if (busy) return;
+  busy = true; $("btnConvert").disabled = true;   // backend: jedna konwersja naraz na użytkownika
+  const form = new FormData();
+  form.append("file", file);
+  form.append("target", $("target").value);
+  const r = await api("POST", "/convert", form);
+  busy = false; $("btnConvert").disabled = false;
+  if (r.ok) refreshFiles();
+};
+
+$("btnRefresh").onclick = () => refreshFiles();
+
+async function refreshFiles() {
+  if (!loggedIn || refreshing) return;
+  refreshing = true;
+  const r = await api("GET", "/files");
+  refreshing = false;
+  if (!r.ok) return;
+  const tb = $("files");
+  tb.innerHTML = "";
+  if (!r.data.length) { tb.innerHTML = "<tr><td>Brak plików</td></tr>"; return; }
+  for (const f of r.data) {
+    const tr = document.createElement("tr");
+    const cell = (text) => { const td = document.createElement("td"); td.textContent = text; tr.appendChild(td); return td; };
+    cell(f.format);
+    cell(f.file_id.slice(0, 8) + "…");
+    const ttl = cell(fmt(f.expires_in));
+    ttl.dataset.exp = Date.now() + f.expires_in * 1000;   // odliczanie lokalne
+    const act = cell("");
+    const bDown = document.createElement("button");
+    bDown.textContent = "Pobierz";
+    bDown.onclick = () => download(f.file_id, f.format);
+    const bDel = document.createElement("button");
+    bDel.textContent = "Usuń";
+    bDel.onclick = async () => { await api("DELETE", "/files/" + f.file_id); refreshFiles(); };
+    act.append(bDown, " ", bDel);
+    tb.appendChild(tr);
+  }
+}
+
+// fetch + blob działa niezależnie od tego, czy front i backend są w tej samej domenie
+async function download(id, format) {
+  const r = await fetch(base() + "/files/" + id, { credentials: "include" });
+  log("GET /files/" + id + " → " + r.status);
+  if (!r.ok) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(await r.blob());
+  a.download = "converted." + format;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// co sekundę: odliczanie sesji i plików
+setInterval(() => {
+  if (loggedIn) {
+    const left = (sessionExp - Date.now()) / 1000;
+    $("who").textContent = "Zalogowany, sesja wygasa za " + fmt(left);
+    if (left <= 0) { log("Sesja wygasła"); setLoggedIn(false); return; }
+  }
+  let expired = false;
+  document.querySelectorAll("[data-exp]").forEach((el) => {
+    const left = (el.dataset.exp - Date.now()) / 1000;
+    el.textContent = fmt(left);
+    if (left <= 0) expired = true;
+  });
+  if (expired) refreshFiles();
+}, 1000);
+
+checkSession();
+</script>
+</body>
+</html>
