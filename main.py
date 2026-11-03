@@ -14,16 +14,21 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Cookie, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pillow_heif import register_heif_opener
 from pydantic import BaseModel, EmailStr
 
 register_heif_opener()  # obsługa HEIC w Pillow (odczyt i zapis)
 load_dotenv()
+
 # ---------- KONFIGURACJA ----------
-GMAIL_USER = os.environ["GMAIL_USER"]                 # np. twojadres@gmail.com
-GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]   # hasło aplikacji z Google (16 znaków)
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000").rstrip("/")  # bez ukośnika na końcu
+GMAIL_USER = os.environ["GMAIL_USER"]                    # np. twojadres@gmail.com
+GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]    # hasło aplikacji z Google (16 znaków)
+# Adres, pod którym działa strona. Gdy backend sam serwuje frontend, to adres backendu. Bez "/" na końcu.
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:8000").rstrip("/")
+FRONTEND_DIR = Path(__file__).parent / "static"  # tu leży strona: index.html, app.js, style.css
+CSP = "default-src 'self'; frame-ancestors 'none'"  # strona ładuje zasoby tylko z własnego adresu, nie da się jej osadzić w ramce
 COOKIE_NAME = "session"
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") == "1"  # 1 = cookie tylko przez HTTPS; na lokalnym http ustaw 0
 
@@ -85,10 +90,14 @@ async def guard(request: Request, call_next):
                 ok = token in sessions
             if not ok:
                 return JSONResponse({"detail": "Brak dostępu lub sesja wygasła"}, status_code=401)
-    return await call_next(request)
+    response = await call_next(request)
+    if not request.url.path.startswith("/docs"):  # Swagger ładuje skrypty z CDN, więc go pomijamy
+        response.headers["Content-Security-Policy"] = CSP
+    return response
 
 
 # CORS dodany PO strażniku, żeby był warstwą zewnętrzną (odpowiedzi 401/413 też mają nagłówki CORS)
+# CORS przydaje się tylko, gdy frontend stoi pod INNYM adresem niż backend (przy serwowaniu przez backend nie jest używany)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
@@ -372,3 +381,8 @@ def delete(file_id: str, s=Depends(current_session)):
     if f:
         f["path"].unlink(missing_ok=True)
     return {"deleted": file_id}
+
+
+
+if FRONTEND_DIR.is_dir():  # bez folderu "static" backend działa dalej jako samo API
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
