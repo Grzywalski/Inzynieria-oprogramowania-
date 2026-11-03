@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Konwerter plików</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main class="wrap">
+
+  <!-- ===== EKRAN 1: LOGOWANIE (widoczne zawsze na start) ===== -->
+  <section id="loginView" class="card">
+    <h1>Konwerter plików</h1>
+    <p class="sub">Zaloguj się kodem wysyłanym na e-mail, aby korzystać z konwertera.</p>
+
+    <form id="stepEmail" autocomplete="on">
+      <label for="email">Adres e-mail</label>
+      <input id="email" type="email" inputmode="email" autocomplete="email"
+             placeholder="twoj@email.pl" required>
+      <button type="submit" id="btnOtp" class="btn btn-primary">Wyślij kod</button>
+    </form>
+
+    <form id="stepCode" hidden>
+      <p class="hint">Kod został wysłany na <b id="sentTo"></b>. Sprawdź też folder spam.</p>
+      <label for="code">Kod z e-maila</label>
+      <input id="code" maxlength="10" autocomplete="one-time-code"
+             placeholder="kod (10 znaków)" required>
+      <div class="row">
+        <button type="submit" id="btnLogin" class="btn btn-primary">Zaloguj</button>
+        <button type="button" id="btnBack" class="btn btn-ghost">Zmień e-mail</button>
+      </div>
+    </form>
+
+    <p id="authMsg" class="msg" role="status"></p>
+  </section>
+
+  <!-- ===== EKRAN 2: APLIKACJA (ukryta do momentu zalogowania) ===== -->
+  <section id="appView" hidden>
+
+    <header class="topbar card">
+      <span class="brand">Konwerter plików</span>
+      <span class="grow"></span>
+      <span id="who" class="who"></span>
+      <button id="btnLogout" class="btn btn-ghost">Wyloguj</button>
+    </header>
+
+    <section class="card">
+      <h2>Konwersja</h2>
+      <div class="convert-row">
+        <input id="file" type="file">
+        <label for="target" class="sr-only">Format docelowy</label>
+        <select id="target">
+          <option>jpg</option><option>png</option><option>gif</option>
+          <option>heic</option>
+          <option>mp3</option><option>wav</option><option>flac</option>
+          <option>mp4</option><option>mov</option>
+        </select>
+        <button id="btnConvert" class="btn btn-primary">Konwertuj</button>
+      </div>
+      <p id="convMsg" class="msg" role="status"></p>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <h2>Moje pliki</h2>
+        <span class="grow"></span>
+        <button id="btnRefresh" class="btn btn-ghost">Odśwież</button>
+      </div>
+      <p class="hint">Pliki są usuwane po 10 minutach.</p>
+      <table>
+        <thead><tr><th>Format</th><th>Plik</th><th>Wygasa za</th><th></th></tr></thead>
+        <tbody id="files"></tbody>
+      </table>
+      <p id="filesMsg" class="msg" role="status"></p>
+    </section>
+
+  </section>
+</main>
+
+<!-- Skrypt i style są w osobnych plikach, bo nagłówek CSP z backendu blokuje kod wpisany w HTML -->
+<script src="app.js"></script>
+</body>
+</html>
