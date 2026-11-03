@@ -104,6 +104,38 @@ $("btnLogout").onclick = async () => {
 
 // ===== KONWERSJA =====
 
+// drag & drop + klik na plik
+const dz = $("dropZone"), fileInput = $("file"), fileName = $("fileName");
+
+function showFileName() {
+  const f = fileInput.files[0];
+  if (f) { fileName.textContent = f.name; fileName.hidden = false; }
+  else { fileName.textContent = ""; fileName.hidden = true; }
+}
+fileInput.onchange = showFileName;
+
+dz.onclick = () => fileInput.click();
+dz.onkeydown = (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); fileInput.click(); } };
+
+dz.ondragover = (ev) => { ev.preventDefault(); dz.classList.add("dragover"); };
+dz.ondragleave = () => dz.classList.remove("dragover");
+dz.ondrop = (ev) => {
+  ev.preventDefault();
+  dz.classList.remove("dragover");
+  if (ev.dataTransfer.files.length) {
+    fileInput.files = ev.dataTransfer.files;   // przekazanie pliku do istniejącej logiki
+    showFileName();
+  }
+};
+
+// slider z rozszerzeniami (ukryty input #target trzyma wybraną wartość)
+document.querySelectorAll("#targetRow .pill").forEach((pill) => {
+  pill.onclick = () => {
+    $("target").value = pill.dataset.target;
+    document.querySelectorAll("#targetRow .pill").forEach((p) => p.classList.toggle("active", p === pill));
+  };
+});
+
 $("btnConvert").onclick = async () => {
   msg("convMsg", "", "info");
   const file = $("file").files[0];
@@ -117,7 +149,8 @@ $("btnConvert").onclick = async () => {
   const r = await api("POST", "/convert", form);
   busy = false; $("btnConvert").disabled = false;
   if (r.ok) {
-    $("file").value = "";
+    fileInput.value = "";
+    showFileName();
     msg("convMsg", "Gotowe — plik pojawił się na liście.", "ok");
     refreshFiles();
   } else {

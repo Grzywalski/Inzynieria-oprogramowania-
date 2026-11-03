@@ -46,19 +46,32 @@
       <button id="btnLogout" class="btn btn-ghost">Wyloguj</button>
     </header>
 
-    <section class="card">
+    <section class="card convert-card">
       <h2>Konwersja</h2>
-      <div class="convert-row">
-        <input id="file" type="file">
-        <label for="target" class="sr-only">Format docelowy</label>
-        <select id="target">
-          <option>jpg</option><option>png</option><option>gif</option>
-          <option>heic</option>
-          <option>mp3</option><option>wav</option><option>flac</option>
-          <option>mp4</option><option>mov</option>
-        </select>
-        <button id="btnConvert" class="btn btn-primary">Konwertuj</button>
+
+      <div id="dropZone" class="dropzone" role="button" tabindex="0"
+           aria-label="Przeciągnij plik tutaj lub kliknij, aby wybrać">
+        <p class="dz-main">Przeciągnij plik tutaj</p>
+        <p class="hint">albo kliknij, aby wybrać</p>
       </div>
+      <input id="file" type="file" hidden>
+      <p id="fileName" class="file-name" hidden></p>
+
+      <p class="convert-label">Konwertuj na:</p>
+      <div id="targetRow" class="pill-slider">
+        <input id="target" type="hidden" value="jpg">
+        <button type="button" class="pill active" data-target="jpg">jpg</button>
+        <button type="button" class="pill" data-target="png">png</button>
+        <button type="button" class="pill" data-target="gif">gif</button>
+        <button type="button" class="pill" data-target="heic">heic</button>
+        <button type="button" class="pill" data-target="mp3">mp3</button>
+        <button type="button" class="pill" data-target="wav">wav</button>
+        <button type="button" class="pill" data-target="flac">flac</button>
+        <button type="button" class="pill" data-target="mp4">mp4</button>
+        <button type="button" class="pill" data-target="mov">mov</button>
+      </div>
+
+      <button id="btnConvert" class="btn btn-primary convert-btn">Konwertuj</button>
       <p id="convMsg" class="msg" role="status"></p>
     </section>
 

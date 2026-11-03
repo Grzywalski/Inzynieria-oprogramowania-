@@ -58,7 +58,6 @@ input:focus, select:focus {
 }
 #convert-row input[type="file"], .convert-row input[type="file"] { padding: 7px; }
 #convert-row select, .convert-row select { width: auto; }
-
 /* ===== Przyciski ===== */
 button {
   font: inherit;
@@ -89,14 +88,62 @@ button:disabled { cursor: default; opacity: .55; }
 .who { color: var(--muted); font-size: 14px; }
 
 /* ===== Konwersja ===== */
-.convert-row {
+.convert-card { text-align: center; }
+
+/* 1) dropzone na plik */
+.dropzone {
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: #fdf9f1;
+  padding: 26px 12px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.dropzone:hover, .dropzone:focus, .dropzone.dragover {
+  background: #f6ecd9;
+  border-color: var(--accent-dark);
+  outline: none;
+}
+.dropzone .dz-main { margin: 0 0 4px; font-weight: 600; color: var(--accent-dark); }
+.dropzone .hint { margin: 0; }
+
+/* nazwa wybranego pliku */
+.file-name {
+  font-size: 14px;
+  margin: 10px 0 0;
+  word-break: break-all;
+}
+
+/* 2) napis nad sliderem */
+.convert-label { margin: 18px 0 8px; font-weight: 600; }
+
+/* 3) slider z rozszerzeniami */
+.pill-slider {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 18px;
 }
-.convert-row input, .convert-row select { margin: 0; }
-.convert-row input[type="file"] { flex: 1 1 220px; }
+.pill {
+  background: #fdf9f1;
+  color: var(--accent-dark);
+  border: 1px solid var(--line);
+  padding: 6px 14px;
+}
+.pill:hover { background: #efe3cc; }
+.pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* 4) przycisk na samym dole */
+.convert-btn {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
 
 /* ===== Tabela plików ===== */
 table { width: 100%; border-collapse: collapse; }
