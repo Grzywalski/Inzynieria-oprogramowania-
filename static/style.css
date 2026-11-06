@@ -137,6 +137,12 @@ button:disabled { cursor: default; opacity: .55; }
   border-color: var(--accent);
   color: #fff;
 }
+.pill:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  background: #e8ddc9;
+  color: var(--muted);
+}
 
 /* 4) przycisk na samym dole */
 .convert-btn {

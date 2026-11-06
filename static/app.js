@@ -104,15 +104,56 @@ $("btnLogout").onclick = async () => {
 
 // ===== KONWERSJA =====
 
-// drag & drop + klik na plik
+// drag & drop + klik na pliki (maksymalnie 3, wysyłane po kolei)
 const dz = $("dropZone"), fileInput = $("file"), fileName = $("fileName");
+const MAX_FILES = 3;
+
+function ext(f) {                            // rozszerzenie pliku (do blokady "ten sam typ")
+  const i = f.name.lastIndexOf(".");
+  return i < 0 ? "" : f.name.slice(i + 1).toLowerCase();
+}
+
+function setSelected(list) {                 // ograniczenie wyboru do MAX_FILES
+  const files = Array.from(list).slice(0, MAX_FILES);
+  try {
+    const dt = new DataTransfer();
+    files.forEach((f) => dt.items.add(f));
+    fileInput.files = dt.files;
+  } catch (e) { /* brak DataTransfer — użyj tego, co jest */ }
+  showFileName();
+}
 
 function showFileName() {
-  const f = fileInput.files[0];
-  if (f) { fileName.textContent = f.name; fileName.hidden = false; }
-  else { fileName.textContent = ""; fileName.hidden = true; }
+  const files = Array.from(fileInput.files);
+  if (!files.length) {
+    fileName.hidden = true;
+  } else {
+    const word = files.length === 1 ? "plik" : "pliki";
+    fileName.textContent = files.length + " " + word + ": " + files.map((f) => f.name).join(", ");
+    fileName.hidden = false;
+  }
+  updatePills();
 }
-fileInput.onchange = showFileName;
+
+// rozszerzenie zgodne z wybranym plikiem = nie można konwertować na ten sam typ
+function updatePills() {
+  const picked = new Set(Array.from(fileInput.files).map(ext));
+  let changedTarget = false;
+  document.querySelectorAll("#targetRow .pill").forEach((pill) => {
+    const same = picked.has(pill.dataset.target);
+    pill.disabled = same;
+    if (same && $("target").value === pill.dataset.target) changedTarget = true;
+  });
+  if (changedTarget) {                       // aktywna pajlka stała się zablokowana → wybierz inną
+    const free = document.querySelector("#targetRow .pill:not(:disabled)");
+    if (free) free.click();
+  }
+}
+fileInput.onchange = () => {
+  if (fileInput.files.length > MAX_FILES)    // więcej niż 3 → zostaw pierwsze 3
+    msg("convMsg", "Maksymalnie " + MAX_FILES + " pliki naraz — użyto pierwszych " + MAX_FILES + ".", "info");
+  setSelected(fileInput.files);
+};
 
 dz.onclick = () => fileInput.click();
 dz.onkeydown = (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); fileInput.click(); } };
@@ -123,8 +164,10 @@ dz.ondrop = (ev) => {
   ev.preventDefault();
   dz.classList.remove("dragover");
   if (ev.dataTransfer.files.length) {
-    fileInput.files = ev.dataTransfer.files;   // przekazanie pliku do istniejącej logiki
-    showFileName();
+    const toDrop = ev.dataTransfer.files;
+    if (toDrop.length > MAX_FILES)
+      msg("convMsg", "Maksymalnie " + MAX_FILES + " pliki naraz — użyto pierwszych " + MAX_FILES + ".", "info");
+    setSelected(toDrop);                     // przekazanie plików do istniejącej logiki
   }
 };
 
@@ -136,26 +179,39 @@ document.querySelectorAll("#targetRow .pill").forEach((pill) => {
   };
 });
 
+// backend obsługuje jedną konwersję naraz → kolejne pliki lecą sekwencyjnie
 $("btnConvert").onclick = async () => {
   msg("convMsg", "", "info");
-  const file = $("file").files[0];
-  if (!file) return msg("convMsg", "Wybierz plik.", "err");
+  const files = Array.from(fileInput.files);
+  if (!files.length) return msg("convMsg", "Wybierz pliki.", "err");
+  if (files.length > MAX_FILES) return msg("convMsg", "Maksymalnie " + MAX_FILES + " pliki naraz.", "err");
   if (busy) return;
+  const target = $("target").value;
+  const sameType = files.filter((f) => ext(f) === target);
+  if (sameType.length)
+    return msg("convMsg", "Nie można konwertować na ten sam typ: " + sameType.map((f) => f.name).join(", ") + ".", "err");
+
   busy = true; $("btnConvert").disabled = true;   // backend: jedna konwersja naraz na użytkownika
-  msg("convMsg", "Konwertowanie…", "info");
-  const form = new FormData();
-  form.append("file", file);
-  form.append("target", $("target").value);
-  const r = await api("POST", "/convert", form);
-  busy = false; $("btnConvert").disabled = false;
-  if (r.ok) {
-    fileInput.value = "";
-    showFileName();
-    msg("convMsg", "Gotowe — plik pojawił się na liście.", "ok");
-    refreshFiles();
-  } else {
-    msg("convMsg", "Konwersja nie powiodła się. Sprawdź format i spróbuj ponownie.", "err");
+  let ok = 0;
+  const errors = [];
+  for (let i = 0; i < files.length; i++) {
+    msg("convMsg", "Konwertowanie " + (i + 1) + "/" + files.length + " (" + files[i].name + ")…", "info");
+    const form = new FormData();
+    form.append("file", files[i]);
+    form.append("target", target);
+    const r = await api("POST", "/convert", form);
+    if (r.ok) ok++;
+    else if (r.status === 413) errors.push(files[i].name + ": plik jest za duży");
+    else errors.push(files[i].name + ": konwersja nie powiodła się");
   }
+  busy = false; $("btnConvert").disabled = false;
+  fileInput.value = "";
+  showFileName();
+  if (errors.length)
+    msg("convMsg", "Gotowe: " + ok + "/" + files.length + ". " + errors.join(" · "), errors.length === files.length ? "err" : "info");
+  else
+    msg("convMsg", "Gotowe — pliki pojawiły się na liście.", "ok");
+  if (ok) refreshFiles();
 };
 
 // ===== LISTA PLIKÓW =====
