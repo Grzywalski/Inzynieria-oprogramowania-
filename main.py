@@ -48,10 +48,10 @@ OTP_ALPHABET = string.ascii_uppercase + string.digits
 KIND = {
     "jpg": "image", "png": "image", "gif": "image", "heic": "image",
     "mp3": "audio", "wav": "audio", "flac": "audio",
-    "mp4": "video", "mov": "video",
+    "mp4": "video", "mov": "video","gif":"video",
 }
 IMG_FORMAT = {"jpg": "JPEG", "png": "PNG", "gif": "GIF", "heic": "HEIF"}
-DEMUXER = {"mp3": "mp3", "wav": "wav", "flac": "flac", "mp4": "mov", "mov": "mov"}  # ffmpeg nie zgaduje formatu
+DEMUXER = {"mp3": "mp3", "wav": "wav", "flac": "flac", "mp4": "mov", "mov": "mov","gif": "GIF"}  # ffmpeg nie zgaduje formatu
 HEIC_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1"}
 
 slots = Semaphore(3)  # maks. 3 konwersje naraz (ffmpeg jest ciężki)
@@ -308,7 +308,7 @@ def convert(file: UploadFile = File(...), target: str = Form(...), s=Depends(cur
     email = s["email"]
     target = target.lower()
     ext = Path(file.filename or "").suffix.lstrip(".").lower()
-    if ext not in KIND or target not in KIND or KIND[ext] != KIND[target]:
+    if ext not in KIND or target not in KIND or KIND[ext] != KIND[target] or ext==target:
         raise HTTPException(400, "Niedozwolony format lub konwersja między różnymi rodzajami plików")
 
     with lock:  # jedna konwersja naraz na użytkownika + limit 5 plików (bez wyścigów)
